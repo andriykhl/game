@@ -7,6 +7,8 @@ if(WIN32)
     SET(PROJECT_LIBS Ws2_32.lib)
 endif()
 
+set (CMAKE_CXX_STANDARD 14)
+
 file(GLOB HEADERS "*.hpp" "model/*.hpp")
 SET_SOURCE_FILES_PROPERTIES(${HEADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
 file(GLOB SRC "*.cpp" "model/*.cpp")
