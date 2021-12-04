@@ -14,12 +14,19 @@ Action MyStrategy::getAction(const PlayerView& playerView, DebugInterface* debug
 
     int all_places{};
     int used_places{};
-    //analysis
+    int builderId{-1};
+    int builder{};
+    int troops{};
+    vector<pair<int, Vec2Int>> houses{};
     for(const auto & entity : playerView.entities)
     {
             if(entity.playerId==nullptr or *entity.playerId!=myId) continue;
             all_places  += playerView.entityProperties.at(entity.entityType).populationProvide;
             used_places += playerView.entityProperties.at(entity.entityType).populationUse;
+            if(entity.entityType == HOUSE and entity.health!=playerView.entityProperties.at(entity.entityType).maxHealth)
+                houses.push_back({entity.id,entity.position});
+            builder += entity.entityType == BUILDER_UNIT;
+            troops += entity.entityType == RANGED_UNIT;
     }
 
     for(const auto & entity : playerView.entities)
@@ -33,36 +40,56 @@ Action MyStrategy::getAction(const PlayerView& playerView, DebugInterface* debug
         shared_ptr<MoveAction>   moveAction{nullptr};
         shared_ptr<BuildAction>  buildAction{nullptr};
         shared_ptr<AttackAction> attackAction{nullptr};
+shared_ptr<RepairAction> repareAction{nullptr};
 
-        if(properties.canMove)
-            moveAction = make_shared<MoveAction>(Vec2Int(playerView.mapSize - 1, 0), true, true);
-        else if(properties.build != nullptr)
+
+        if(properties.build != nullptr)
         {
             EntityType entityType = properties.build->options[0];
-            size_t currentUnits = count_if(begin(playerView.entities), end(playerView.entities), [&](auto & e)
-            {
-                return e.playerId!=nullptr and *e.playerId==myId and e.entityType==entityType;
-            });
 
             if(used_places+1 <= all_places)
+            {
+                if(entity.entityType==RANGED_BASE or entity.entityType==BUILDER_BASE and builder < 2*troops)
                 buildAction = make_shared<BuildAction>(entityType, Vec2Int(entity.position.x + properties.size, entity.position.y + properties.size - 1));
+            }
         }
         vector<EntityType> validAutoAttackTargets;
         if(entity.entityType == BUILDER_UNIT)
         {
 cout << myPlayer->resource << " \n" << flush;
-            if(used_places+3 >= all_places and myPlayer->resource >= 30)
+            if(used_places+3 >= all_places and myPlayer->resource >= 60 )
             {
                 cout << "build! \n" << flush;
-                buildAction = make_shared<BuildAction>(HOUSE, Vec2Int(0, 0));
+                //builderId=entity.id;
+                buildAction = make_shared<BuildAction>(HOUSE, Vec2Int(entity.position.x + properties.size, entity.position.y + properties.size - 1));
                 result.entityActions[entity.id] = EntityAction(moveAction, buildAction, attackAction, nullptr);
                 continue;
             }
+            moveAction = make_shared<MoveAction>(Vec2Int(playerView.mapSize - 1, playerView.mapSize - 1), true, true);
 
-                validAutoAttackTargets.push_back(RESOURCE);
+            validAutoAttackTargets.push_back(RESOURCE);
+            attackAction = make_shared<AttackAction>(nullptr, make_shared<AutoAttack>(properties.sightRange, validAutoAttackTargets));
+            for(auto & i : houses)
+            {
+               // cout << "id: \n" << id << flush;
+                if(abs(i.second.x-entity.position.x)+ abs(i.second.y-entity.position.y)<=5)
+                {
+                    //cout << "hgjhgjhgjhgj"  << flush;
+                    repareAction = make_shared<RepairAction>(i.first);
+                    attackAction=nullptr;
+                }
+            }
         }
-        attackAction = make_shared<AttackAction>(nullptr, make_shared<AutoAttack>(properties.sightRange, validAutoAttackTargets));
-        result.entityActions[entity.id] = EntityAction(moveAction, buildAction, attackAction, nullptr);
+
+        if(entity.entityType == RANGED_UNIT or entity.entityType == MELEE_UNIT)
+        {
+            if(troops<10)
+             moveAction = make_shared<MoveAction>(Vec2Int(playerView.mapSize/3 - 1, playerView.mapSize/3 - 1), true, true);
+            else
+                moveAction = make_shared<MoveAction>(Vec2Int(playerView.mapSize - 1, playerView.mapSize - 1), true, true);
+             attackAction = make_shared<AttackAction>(nullptr, make_shared<AutoAttack>(properties.sightRange, validAutoAttackTargets));
+        }
+        result.entityActions[entity.id] = EntityAction(moveAction, buildAction, attackAction, repareAction);
     }
     return result;
 }
