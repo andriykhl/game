@@ -16,6 +16,7 @@ Action MyStrategy::getAction(const PlayerView& playerView, DebugInterface* debug
     int used_places{};
     int builder{};
     int troops{};
+    unordered_set<int> new_left_defenders, new_right_defenders;
     vector<pair<int, Vec2Int>> houses{};
     for(const auto & entity : playerView.entities)
     {
@@ -26,7 +27,35 @@ Action MyStrategy::getAction(const PlayerView& playerView, DebugInterface* debug
                 houses.push_back({entity.id,entity.position});
             builder += entity.entityType == BUILDER_UNIT;
             troops  += entity.entityType == RANGED_UNIT;
+            if(entity.entityType == RANGED_UNIT and left_defenders.count(entity.id))
+            {
+                new_left_defenders.insert(entity.id);
+            }
+            if(entity.entityType == RANGED_UNIT and right_defenders.count(entity.id))
+                new_right_defenders.insert(entity.id);
     }
+
+    left_defenders =  new_left_defenders;
+    right_defenders = new_right_defenders;
+
+    for(const auto & entity : playerView.entities)
+    {
+        if(!entity.playerId or *entity.playerId!=myId) continue;
+        if(/*troops>4 and */entity.entityType == RANGED_UNIT and left_defenders.size()<left_defenders_threshold)
+        {
+            cout << "INSERT LEFT = "  << entity.id <<"\n" << flush;
+            left_defenders.insert(entity.id);
+        }
+        else if(/*troops>4 and */entity.entityType == RANGED_UNIT and right_defenders.size()<right_defenders_threshold
+                and !left_defenders.count(entity.id))
+        {
+            cout << "INSERT RIGHT = "  << entity.id <<"\n" << flush;
+            right_defenders.insert(entity.id);
+        }
+    }
+
+     cout << "SIZE LEFT = "  << left_defenders.size() <<"\n" << flush;
+     cout << "SIZE RIGHT = " << right_defenders.size() <<"\n" << flush;
 
     for(const auto & entity : playerView.entities)
     {
@@ -71,10 +100,31 @@ Action MyStrategy::getAction(const PlayerView& playerView, DebugInterface* debug
 
         if(entity.entityType == RANGED_UNIT or entity.entityType == MELEE_UNIT)
         {
-            if(troops<10)
+            if(left_defenders.size())
+                cout << "ID = " << entity.id << " LEFT ID = " << *left_defenders.begin() << "\n" << flush;
+            if(right_defenders.size())
+                cout << "ID = " << " RIGHT ID = " << *right_defenders.begin() << "\n" << flush;
+            //cout << "ID = " << entity.id << " LEFT ID = " << *left_defenders.begin() << " RIGHT ID = " << *right_defenders.begin() << "\n" << flush;
+            if(left_defenders.count(entity.id))
+            {
+                cout << "LEFT DEFENDER ! \n" << flush;
+                moveAction = make_shared<MoveAction>(Vec2Int(20, 10), true, true);
+            }
+            else if(right_defenders.count(entity.id))
+            {
+                cout << "RIGHT DEFENDER ! \n" << flush;
+                moveAction = make_shared<MoveAction>(Vec2Int(10, 20), true, true);
+            }
+            else if(troops<10)
+            {
+                cout << "CENTRAL DEFENDER ! \n" << flush;
                 moveAction = make_shared<MoveAction>(Vec2Int(playerView.mapSize/3-1, playerView.mapSize/3-1), true, true);
+            }
             else
+            {
+                cout << "OFFENSE ! \n" << flush;
                 moveAction = make_shared<MoveAction>(Vec2Int(playerView.mapSize-1, playerView.mapSize-1), true, true);
+            }
             attackAction = make_shared<AttackAction>(nullptr, make_shared<AutoAttack>(properties.sightRange, validAutoAttackTargets));
         }
         result.entityActions[entity.id] = EntityAction(moveAction, buildAction, attackAction, repareAction);
