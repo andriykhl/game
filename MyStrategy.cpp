@@ -23,7 +23,8 @@ Action MyStrategy::getAction(const PlayerView& playerView, DebugInterface* debug
             if(!entity.playerId or *entity.playerId!=myId) continue;
             all_places  += playerView.entityProperties.at(entity.entityType).populationProvide;
             used_places += playerView.entityProperties.at(entity.entityType).populationUse;
-            if(entity.entityType == HOUSE and entity.health!=playerView.entityProperties.at(entity.entityType).maxHealth)
+            if((entity.entityType == HOUSE or entity.entityType == BUILDER_BASE or entity.entityType == RANGED_BASE  or entity.entityType == RANGED_UNIT)
+                and entity.health!=playerView.entityProperties.at(entity.entityType).maxHealth)
                 houses.push_back({entity.id,entity.position});
             builder += entity.entityType == BUILDER_UNIT;
             troops  += entity.entityType == RANGED_UNIT;
@@ -72,14 +73,17 @@ Action MyStrategy::getAction(const PlayerView& playerView, DebugInterface* debug
             EntityType entityType = properties.build->options[0];
             if(used_places+1 <= all_places)
             {
-                if(entity.entityType==RANGED_BASE or entity.entityType==BUILDER_BASE and builder<2*troops)
+                if(entity.entityType==BUILDER_BASE)
                 buildAction = make_shared<BuildAction>(entityType, Vec2Int(entity.position.x+properties.size, entity.position.y+properties.size-1));
+                if(entity.entityType==RANGED_BASE and builder>8)
+                    buildAction = make_shared<BuildAction>(entityType, Vec2Int(entity.position.x+properties.size, entity.position.y+properties.size-1));
+
             }
         }
         vector<EntityType> validAutoAttackTargets;
         if(entity.entityType == BUILDER_UNIT)
         {
-            if(used_places+3 >= all_places and myPlayer->resource >= 60)
+            if(used_places+3 >= all_places and myPlayer->resource >= 50)
             {
                 cout << "build! \n" << flush;
                 buildAction = make_shared<BuildAction>(HOUSE, Vec2Int(entity.position.x+properties.size, entity.position.y+properties.size-1));
@@ -91,8 +95,9 @@ Action MyStrategy::getAction(const PlayerView& playerView, DebugInterface* debug
             validAutoAttackTargets.push_back(RESOURCE);
             attackAction = make_shared<AttackAction>(nullptr, make_shared<AutoAttack>(properties.sightRange, validAutoAttackTargets));
             for(const auto & i : houses)
-                if(abs(i.second.x-entity.position.x)+abs(i.second.y-entity.position.y)<=5)
+                if(abs(i.second.x-entity.position.x)+abs(i.second.y-entity.position.y)<=10)
                 {
+                    moveAction = make_shared<MoveAction>(Vec2Int(i.second.x, i.second.y), true, true);
                     repareAction = make_shared<RepairAction>(i.first);
                     attackAction=nullptr;
                 }
